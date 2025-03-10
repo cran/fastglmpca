@@ -71,6 +71,21 @@
 #'   control argument for \code{\link[daarem]{daarem}}. This setting
 #'   determines to what extent the monotonicity condition can be
 #'   violated.}
+#'   
+#' \item{\code{training_frac}}{Fraction of the columns of input data \code{Y}
+#'   to fit initial model on. If set to \code{1} (default), the model is fit
+#'   by optimizing the parameters on the entire dataset. If set between \code{0}
+#'   and \code{1}, the model is optimized by first fitting a model on a randomly
+#'   selected fraction of the columns of \code{Y}, and then projecting the 
+#'   remaining columns of \code{Y} onto the solution. Setting this to a smaller
+#'   value will increase speed but decrease accuracy.
+#' }
+#' 
+#' \item{\code{num_projection_ccd_iter}}{Number of co-ordinate descent updates
+#'   be made to elements of \code{V} if and when a subset of \code{Y} is 
+#'   projected onto \code{U}. Only used if \code{training_frac} is less than 
+#'   \code{1}.
+#' }
 #'
 #' \item{\code{num_ccd_iter}}{Number of co-ordinate descent updates to
 #'   be made to parameters at each iteration of the algorithm.}
@@ -108,7 +123,7 @@
 #'
 #' @param Y The n x m matrix of counts; all entries of \code{Y} should
 #'   be non-negative. It can be a sparse matrix (class
-#'   \code{"dgCMatrix"}) or dense matrix (class \code{"matrix"}).
+#'   \code{"dsparseMatrix"}) or dense matrix (class \code{"matrix"}).
 #'
 #' @param K Integer 1 or greater specifying the rank of the matrix
 #'   factorization. This should only be provided if the initial fit
@@ -196,7 +211,7 @@ fit_glmpca_pois <- function(
   # Check and process input argument "control".
   control <- modifyList(fit_glmpca_pois_control_default(),
                         control,keep.null = TRUE)
-
+  
   # Set up the internal fit.
   D <- sqrt(fit0$d)
   if (K == 1)
@@ -205,7 +220,7 @@ fit_glmpca_pois <- function(
     D <- diag(D)
   LL <- t(cbind(fit0$U %*% D,fit0$X,fit0$W))
   FF <- t(cbind(fit0$V %*% D,fit0$B,fit0$Z))
-
+  
   # Determine which rows of LL and FF are "clamped".
   fixed_l <- numeric(0)
   fixed_f <- numeric(0)
@@ -217,9 +232,85 @@ fit_glmpca_pois <- function(
   fixed_f <- c(fixed_f,K + fit0$fixed_b_cols)
   if (nz > 0)
     fixed_f <- c(fixed_f,K + nx + seq(1,nz))
-
-  # Perform the updates.
-  res <- fit_glmpca_pois_main_loop(LL,FF,Y,fixed_l,fixed_f,verbose,control)
+  
+  if (control$training_frac == 1) {
+    
+    # Perform the updates.
+    res <- fit_glmpca_pois_main_loop(LL,FF,Y,fixed_l,fixed_f,verbose,control)
+    
+  } else {
+    
+    if (control$training_frac <= 0 || control$training_frac > 1)
+      stop("control argument \"training_frac\" should be between 0 and 1")
+    
+    train_idx <- sample(
+      1:ncol(Y), 
+      size = ceiling(ncol(Y) * control$training_frac)
+    )
+    
+    Y_train <- Y[, train_idx]
+    
+    if (any(Matrix::rowSums(Y_train) == 0) || any(Matrix::colSums(Y_train) == 0)) {
+      
+      stop(
+        "After subsetting, the remaining values of \"Y\" ",
+        "contain a row or a column where all counts are 0. This can cause ",
+        "problems with optimization. Please either remove rows / columns ",
+        "with few non-zero counts from \"Y\", or set \"training_frac\" to ",
+        "a larger value."
+        )
+      
+    }
+    
+    FF_train <- FF[, train_idx, drop = FALSE]
+    FF_test <- FF[, -train_idx, drop = FALSE]
+    Y_test <- Y[, -train_idx, drop = FALSE]
+    
+    test_idx <- 1:ncol(Y)
+    test_idx <- test_idx[-train_idx]
+    
+    # Perform the updates.
+    res <- fit_glmpca_pois_main_loop(
+      LL,
+      FF_train,
+      Y_train,
+      fixed_l,
+      fixed_f,
+      verbose,
+      control
+    )
+    
+    update_indices_f <- sort(setdiff(1:K,fixed_f))
+    
+    # now, I just need to project the results back
+    update_factors_faster_parallel(
+      L_T = t(res$fit$LL),
+      FF = FF_test,
+      M = as.matrix(res$fit$LL[update_indices_f,,drop = FALSE] %*% Y_test),
+      update_indices = update_indices_f - 1,
+      num_iter = control$num_projection_ccd_iter,
+      line_search = control$line_search,
+      alpha = control$ls_alpha,
+      beta = control$ls_beta
+    )
+    
+    # now, I need to reconstruct FF, and hopefully compute the log-likelihood
+    FF[, train_idx] <- res$fit$FF
+    FF[, test_idx] <- FF_test
+    res$fit$FF <- FF
+    
+    if (inherits(Y,"sparseMatrix")) {
+      test_loglik_const <- sum(lfactorial(Y_test@x))
+      loglik_func  <- lik_glmpca_pois_log_sp
+    } else {
+      test_loglik_const <- sum(lfactorial(Y_test))
+      loglik_func  <- lik_glmpca_pois_log
+    }
+    
+    test_loglik <- loglik_func(Y_test,res$fit$LL,FF_test,test_loglik_const)
+    res$loglik <- res$loglik + test_loglik
+    
+  }
   
   # Prepare the final output.
   res$progress$iter <- max(fit0$progress$iter) + res$progress$iter
@@ -258,13 +349,15 @@ fit_glmpca_pois <- function(
     dimnames(fit$W) <- dimnames(fit0$W)
   }
   class(fit) <- c("glmpca_pois_fit","list")
+  
   return(fit)
+  
 }
+
 
 # This implements the core part of fit_glmpca_pois.
 #
 #' @importFrom Matrix t
-#' @importFrom MatrixExtra mapSparse
 #' @importFrom daarem fpiter
 #' @importFrom daarem daarem
 fit_glmpca_pois_main_loop <- function (LL, FF, Y, fixed_l, fixed_f,
@@ -279,7 +372,7 @@ fit_glmpca_pois_main_loop <- function (LL, FF, Y, fixed_l, fixed_f,
 
   # These variables are used to compute the log-likelihood below.
   if (inherits(Y,"sparseMatrix")) {
-    loglik_const <- sum(mapSparse(Y,lfactorial))
+    loglik_const <- sum(lfactorial(Y@x))
     loglik_func  <- lik_glmpca_pois_log_sp
   } else {
     loglik_const <- sum(lfactorial(Y))
@@ -339,8 +432,8 @@ fit_glmpca_pois_main_loop <- function (LL, FF, Y, fixed_l, fixed_f,
                  loglik_const = loglik_const,
                  verbose = verbose)
   if (!res$convergence)
-    warning(sprintf(paste("fit_glmpca_pois failed to meet convergence",
-                          "criterion within %d iterations"),
+    message(sprintf(paste("Note that the specified convergence criteria was not",
+                          "met within %d iterations."),
                     control$maxiter))
 
   # Prepare the output.
@@ -358,6 +451,8 @@ fit_glmpca_pois_control_default <- function()
   list(use_daarem = FALSE,
        maxiter = 100,
        tol = 1e-4,
+       training_frac = 1,
+       num_projection_ccd_iter = 10,
        mon.tol = 0.05,
        convtype = "objfn",
        line_search = TRUE,
@@ -457,7 +552,7 @@ fit2par <- function (fit, update_indices_l, update_indices_f)
 
 # This implements a single update of LL and FF.
 #
-#' @importMethodsFrom MatrixExtra tcrossprod
+#' @importMethodsFrom Matrix tcrossprod
 update_glmpca_pois <- function (LL, FF, Y, Y_T, update_indices_l,
                                 update_indices_f, control) {
   n <- nrow(Y)

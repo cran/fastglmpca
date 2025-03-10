@@ -282,3 +282,68 @@ test_that("Test fit works with input covariates",{
   expect_equivalent(crossprod(fit_quick$U),diag(3),scale = 1,tolerance = 1e-8)
   expect_equivalent(crossprod(fit_quick$V),diag(3),scale = 1,tolerance = 1e-8)
 })
+
+test_that("Results are the same with different classes of sparse matrices",{
+  
+  # Simulate a 100 x 200 data set to factorize.
+  set.seed(1)
+  n <- 100
+  m <- 200
+  Y <- generate_glmpca_data_pois(n,m,K = 3)$Y
+  
+  Y_dgC <- as(Y, "CsparseMatrix")
+  Y_dgT <- as(Y, "dgTMatrix")
+  Y_dgR <- as(Y, "dgRMatrix")
+  
+  set.seed(1)
+  fit0_dgC <- init_glmpca_pois(Y_dgC,K = 3)
+  set.seed(1)
+  fit0_dgT <- init_glmpca_pois(Y_dgT,K = 3)
+  set.seed(1)
+  fit0_dgR <- init_glmpca_pois(Y_dgR,K = 3)
+  
+  suppressWarnings(capture.output(
+    fit_quick_dgC <- fit_glmpca_pois(Y_dgC,fit0 = fit0_dgC,
+                                     control = list(maxiter = 20))))
+  
+  suppressWarnings(capture.output(
+    fit_quick_dgT <- fit_glmpca_pois(Y_dgT,fit0 = fit0_dgT,
+                                     control = list(maxiter = 20))))
+  
+  suppressWarnings(capture.output(
+    fit_quick_dgR <- fit_glmpca_pois(Y_dgR,fit0 = fit0_dgR,
+                                     control = list(maxiter = 20))))
+  
+  expect_equal(fit_quick_dgC$progress$loglik, fit_quick_dgR$progress$loglik)
+  expect_equal(fit_quick_dgC$progress$loglik, fit_quick_dgT$progress$loglik)
+  expect_equal(fit_quick_dgC$U, fit_quick_dgR$U)
+  expect_equal(fit_quick_dgC$d, fit_quick_dgR$d)
+  expect_equal(fit_quick_dgC$V, fit_quick_dgR$V)
+  expect_equal(fit_quick_dgC$U, fit_quick_dgT$U)
+  expect_equal(fit_quick_dgC$d, fit_quick_dgT$d)
+  expect_equal(fit_quick_dgC$V, fit_quick_dgT$V)
+})
+
+test_that("Subset fitting works", {
+  
+  set.seed(1)
+  dat <- generate_glmpca_data_pois(500, 250, 2)
+  
+  set.seed(1)
+  suppressWarnings(capture.output(fit1 <- fit_glmpca_pois(
+    Y = dat$Y, 
+    K = 2,
+    control = list(training_frac = 0.99, maxiter = 100)
+  )))
+  
+  set.seed(1)
+  suppressWarnings(capture.output(fit2 <- fit_glmpca_pois(
+    Y = dat$Y, 
+    K = 2,
+    control = list(training_frac = 1, maxiter = 100)
+  )))
+  
+  expect_equal(fit1$U, fit2$U, tolerance = 0.05)
+  expect_equal(fit1$V, fit2$V, tolerance = 0.05)
+  
+})
