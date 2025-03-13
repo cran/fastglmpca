@@ -1,6 +1,6 @@
-9ea2e43e09d0e900f64a008a45222c56 *DESCRIPTION
+71453a4af197e190e8a98427063ef33a *DESCRIPTION
 225797fda0dce51064344d798d5f281f *NAMESPACE
-e29dfcbe694737e740b460509d4f3142 *NEWS.md
+9550d679c709d862f345e7318200d8b9 *NEWS.md
 59c805c15558e6806a9502a924838214 *R/RcppExports.R
 83e1fe5ab40f1bec9e42f9a16bab9855 *R/argument_checking.R
 9555abbdacaa92d83d156e438847e357 *R/fastglmpca-package.R
@@ -17,7 +17,7 @@ f61db891eb928123aba4412ca322f508 *build/partial.rdb
 a090556c9b1dde2923c1dd89265d2810 *data/pbmc_facs.RData
 f76c62f3a13d70821dc597a92104cf5a *inst/doc/intro_fastglmpca.R
 18a0ee1eb800ec07d04f88303d526d47 *inst/doc/intro_fastglmpca.Rmd
-8f727b0b140acf21156dd43a0e8e36ed *inst/doc/intro_fastglmpca.html
+fb8233a4bb8617f2dae15a3f7488216a *inst/doc/intro_fastglmpca.html
 a936f7b35b62abffd09ff592402f5d26 *man/fit_glmpca_pois.Rd
 83e8ed9ae2c8bd45a5fad220c21e6f77 *man/fitted.glmpca_pois_fit.Rd
 22880161ee4c301cfd888479f455fbbf *man/generate_glmpca_data_pois.Rd
@@ -31,6 +31,6 @@ ae77c22fd626468b7867aa6aa9e88161 *man/summary.glmpca_pois_fit.Rd
 ddff96f2ae7f333d845232e0e37a7204 *src/utils.cpp
 5527666218e110aa4c358929fd0829f7 *tests/testthat.R
 892433e415378afee3e6f3ecccdace04 *tests/testthat/helper_functions.R
-86631344f958874764299903bec3b08d *tests/testthat/test_fit_glmpca_pois.R
+f33ba58d392be86db62d5522443cccbd *tests/testthat/test_fit_glmpca_pois.R
 60c2edca2c1d6afba5b88ddb5e2a772d *tests/testthat/test_init_glmpca_pois.R
 18a0ee1eb800ec07d04f88303d526d47 *vignettes/intro_fastglmpca.Rmd

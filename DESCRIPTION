@@ -1,8 +1,8 @@
 Encoding: UTF-8
 Type: Package
 Package: fastglmpca
-Version: 0.1-107
-Date: 2027-03-09
+Version: 0.1-108
+Date: 2025-03-12
 Title: Fast Algorithms for Generalized Principal Component Analysis
 Authors@R: c(person("Eric","Weine",role=c("aut","cre"),
                     email="ericweine15@gmail.com"),
@@ -30,10 +30,10 @@ LazyDataCompression: xz
 NeedsCompilation: yes
 VignetteBuilder: knitr
 RoxygenNote: 7.3.1
-Packaged: 2025-03-10 12:53:05 UTC; eweine
+Packaged: 2025-03-12 12:35:24 UTC; eweine
 Author: Eric Weine [aut, cre],
   Peter Carbonetto [aut],
   Matthew Stephens [aut]
 Maintainer: Eric Weine <ericweine15@gmail.com>
 Repository: CRAN
-Date/Publication: 2025-03-10 13:10:02 UTC
+Date/Publication: 2025-03-13 08:20:06 UTC
